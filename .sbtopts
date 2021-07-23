@@ -1,0 +1,8 @@
+-J-Xms1g
+-J-Xmx2g
+-J-XX:MaxMetaspaceSize=1g
+-J-XX:+HeapDumpOnOutOfMemoryError
+-J-XX:+UseParallelGC
+-Djava.awt.headless=true
+-Dfile.encoding=utf8
+-Duser.timezone=UTC
