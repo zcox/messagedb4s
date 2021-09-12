@@ -23,7 +23,6 @@ trait MessageDb[F[_]] {
   // https://github.com/message-db/message-db/blob/master/database/functions/write-message.sql
   // http://docs.eventide-project.org/user-guide/message-db/server-functions.html#write-a-message
   def writeMessage(
-      //TODO should we try to declare id as a UUID here?
       id: String,
       streamName: String,
       `type`: String,
@@ -52,7 +51,6 @@ object MessageDb {
 
   object Write {
     case class Message(
-        //TODO UUID?
         id: String,
         `type`: String,
         data: Json,
