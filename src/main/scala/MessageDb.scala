@@ -20,6 +20,10 @@ trait MessageDb[F[_]] {
       condition: Option[String],
   ): Stream[F, MessageDb.Read.Message]
 
+  def getLastStreamMessage(
+    streamName: String,
+  ): F[Option[MessageDb.Read.Message]]
+
   // https://github.com/message-db/message-db/blob/master/database/functions/write-message.sql
   // http://docs.eventide-project.org/user-guide/message-db/server-functions.html#write-a-message
   def writeMessage(
@@ -85,6 +89,13 @@ object MessageDb {
         .query(Read.Message.decoder)
   }
 
+  object GetLastStremMessage {
+    type Arguments = String
+    val query: Query[Arguments, Read.Message] = 
+      sql"SELECT id, stream_name, type, position, global_position, data, metadata, time FROM get_last_stream_message($varchar)"
+        .query(Read.Message.decoder)
+  }
+
   object WriteMessage {
     type Arguments = String ~ String ~ String ~ Json ~ Option[Json] ~ Option[Long]
     val query: Query[Arguments, Long] =
@@ -95,8 +106,10 @@ object MessageDb {
   def fromSession[F[_]](session: Session[F], chunkSize: Int = 32): Resource[F, MessageDb[F]] =
     for {
       getStreamMessagesQuery <- session.prepare(GetStreamMessages.query)
+      getLastStreamMessageQuery <- session.prepare(GetLastStremMessage.query)
       writeMessageQuery <- session.prepare(WriteMessage.query)
     } yield new MessageDb[F] {
+
       override def getStreamMessages(
           streamName: String,
           position: Option[Long],
@@ -104,6 +117,11 @@ object MessageDb {
           condition: Option[String],
       ): Stream[F, MessageDb.Read.Message] =
         getStreamMessagesQuery.stream(streamName ~ position ~ batchSize ~ condition, chunkSize)
+
+      override def getLastStreamMessage(
+        streamName: String,
+      ): F[Option[MessageDb.Read.Message]] = 
+        getLastStreamMessageQuery.option(streamName)
 
       override def writeMessage(
           id: String,

@@ -52,23 +52,32 @@ class MessageDbTest extends CatsEffectSuite {
   }
 
   test("write and read messages") {
+    val id0 = newUuid
+    val stream0 = s"test-$id0"
     val id1 = newUuid
-    val streamName = s"test-$id1"
+    val stream1 = s"test-$id1"
     val e1 = newUuid
     val j1 = toJson("""{"a":1,"b":2}""")
     val e2 = newUuid
     val j2 = toJson("""{"c":3,"d":4}""")
     messageDb.use { mdb =>
       for {
-        p0 <- mdb.writeMessage(e1, streamName, "Test1", j1, None, None)
-        p1 <- mdb.writeMessage(e2, streamName, "Test2", j2, None, None)
-        ms1 <- mdb.getStreamMessages(streamName, None, None, None).compile.toList
+        ms0 <- mdb.getStreamMessages(stream0, None, None, None).compile.toList
+        lm0 <- mdb.getLastStreamMessage(stream0)
+        p0 <- mdb.writeMessage(e1, stream1, "Test1", j1, None, None)
+        p1 <- mdb.writeMessage(e2, stream1, "Test2", j2, None, None)
+        ms1 <- mdb.getStreamMessages(stream1, None, None, None).compile.toList
+        lm1 <- mdb.getLastStreamMessage(stream1)
       } yield {
+        assert(ms0.isEmpty)
+        assert(lm0.isEmpty)
         assertEquals(p0, 0L)
         assertEquals(p1, 1L)
         assertEquals(ms1.size, 2)
-        assertMessage(e1, streamName, "Test1", 0L, j1, none, ms1(0))
-        assertMessage(e2, streamName, "Test2", 1L, j2, none, ms1(1))
+        assert(lm1.isDefined)
+        assertMessage(e1, stream1, "Test1", 0L, j1, none, ms1(0))
+        assertMessage(e2, stream1, "Test2", 1L, j2, none, ms1(1))
+        assertMessage(e2, stream1, "Test2", 1L, j2, none, lm1.get)
       }
     }
   }
