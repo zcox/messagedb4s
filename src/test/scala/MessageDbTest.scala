@@ -38,7 +38,7 @@ class MessageDbTest extends CatsEffectSuite {
       position: Long,
       data: Json,
       metadata: Option[Json],
-      m: MessageDb.Message
+      m: MessageDb.Read.Message
   ) = {
     assertEquals(id, m.id)
     assertEquals(streamName, m.streamName)

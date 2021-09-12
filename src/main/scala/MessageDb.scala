@@ -18,7 +18,7 @@ trait MessageDb[F[_]] {
       position: Option[Long],
       batchSize: Option[Long],
       condition: Option[String],
-  ): Stream[F, MessageDb.Message]
+  ): Stream[F, MessageDb.Read.Message]
 
   // https://github.com/message-db/message-db/blob/master/database/functions/write-message.sql
   // http://docs.eventide-project.org/user-guide/message-db/server-functions.html#write-a-message
@@ -32,33 +32,59 @@ trait MessageDb[F[_]] {
       expectedVersion: Option[Long],
   ): F[Long]
 
+  def writeMessage(
+      streamName: String,
+      message: MessageDb.Write.Message,
+      expectedVersion: Option[Long],
+  ): F[Long] =
+    writeMessage(
+      message.id,
+      streamName,
+      message.`type`,
+      message.data,
+      message.metadata,
+      expectedVersion,
+    )
+
 }
 
 object MessageDb {
 
-  // https://github.com/message-db/message-db/blob/master/database/types/message.sql
-  case class Message(
-      id: String,
-      streamName: String,
-      `type`: String,
-      position: Long,
-      globalPosition: Long,
-      //the message type declares data and metadata as varchar, so we have to use String here
-      data: String,
-      metadata: Option[String],
-      time: LocalDateTime,
-  )
+  object Write {
+    case class Message(
+        //TODO UUID?
+        id: String,
+        `type`: String,
+        data: Json,
+        metadata: Option[Json],
+    )
+  }
 
-  object Message {
-    val codec = varchar ~ varchar ~ varchar ~ int8 ~ int8 ~ varchar ~ varchar.opt ~ timestamp
-    val decoder = codec.gmap[Message]
+  object Read {
+    // https://github.com/message-db/message-db/blob/master/database/types/message.sql
+    case class Message(
+        id: String,
+        streamName: String,
+        `type`: String,
+        position: Long,
+        globalPosition: Long,
+        //the message type declares data and metadata as varchar, so we have to use String here
+        data: String,
+        metadata: Option[String],
+        time: LocalDateTime,
+    )
+
+    object Message {
+      val codec = varchar ~ varchar ~ varchar ~ int8 ~ int8 ~ varchar ~ varchar.opt ~ timestamp
+      val decoder = codec.gmap[Message]
+    }
   }
 
   object GetStreamMessages {
     type Arguments = String ~ Option[Long] ~ Option[Long] ~ Option[String]
-    val query: Query[Arguments, Message] =
+    val query: Query[Arguments, Read.Message] =
       sql"SELECT id, stream_name, type, position, global_position, data, metadata, time FROM get_stream_messages($varchar, ${int8.opt}, ${int8.opt}, ${varchar.opt})"
-        .query(Message.decoder)
+        .query(Read.Message.decoder)
   }
 
   object WriteMessage {
@@ -78,7 +104,7 @@ object MessageDb {
           position: Option[Long],
           batchSize: Option[Long],
           condition: Option[String],
-      ): Stream[F, MessageDb.Message] =
+      ): Stream[F, MessageDb.Read.Message] =
         getStreamMessagesQuery.stream(streamName ~ position ~ batchSize ~ condition, chunkSize)
 
       override def writeMessage(
