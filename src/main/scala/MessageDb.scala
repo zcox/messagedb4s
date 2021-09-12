@@ -1,6 +1,7 @@
 package messagedb
 
-import io.circe.Json
+import io.circe.{Json, Decoder, Error}
+import io.circe.parser.decode
 import java.time.LocalDateTime
 import fs2.Stream
 import skunk._
@@ -86,7 +87,10 @@ object MessageDb {
         data: String,
         metadata: Option[String],
         time: LocalDateTime,
-    )
+    ) {
+      def decodeData[A: Decoder]: Either[Error, A] = 
+        decode[A](data)
+    }
 
     object Message {
       val codec = varchar ~ varchar ~ varchar ~ int8 ~ int8 ~ varchar ~ varchar.opt ~ timestamp
