@@ -20,6 +20,18 @@ trait MessageDb[F[_]] {
       condition: Option[String],
   ): Stream[F, MessageDb.Read.Message]
 
+  // https://github.com/message-db/message-db/blob/master/database/functions/get-category-messages.sql
+  def getCategoryMessages(
+    category: String,
+    position: Option[Long],
+    batchSize: Option[Long],
+    correlation: Option[String],
+    consumerGroupMember: Option[Long],
+    consumerGroupSize: Option[Long],
+    condition: Option[String],
+  ): Stream[F, MessageDb.Read.Message]
+
+  // https://github.com/message-db/message-db/blob/master/database/functions/get-last-stream-message.sql
   def getLastStreamMessage(
     streamName: String,
   ): F[Option[MessageDb.Read.Message]]
@@ -89,6 +101,13 @@ object MessageDb {
         .query(Read.Message.decoder)
   }
 
+  object GetCategoryMessages {
+    type Arguments = String ~ Option[Long] ~ Option[Long] ~ Option[String] ~ Option[Long] ~ Option[Long] ~ Option[String]
+    val query: Query[Arguments, Read.Message] =
+      sql"SELECT id, stream_name, type, position, global_position, data, metadata, time FROM get_category_messages($varchar, ${int8.opt}, ${int8.opt}, ${varchar.opt}, ${int8.opt}, ${int8.opt}, ${varchar.opt})"
+        .query(Read.Message.decoder)
+  }
+
   object GetLastStremMessage {
     type Arguments = String
     val query: Query[Arguments, Read.Message] = 
@@ -106,6 +125,7 @@ object MessageDb {
   def fromSession[F[_]](session: Session[F], chunkSize: Int = 32): Resource[F, MessageDb[F]] =
     for {
       getStreamMessagesQuery <- session.prepare(GetStreamMessages.query)
+      getCategoryMessageQuery <- session.prepare(GetCategoryMessages.query)
       getLastStreamMessageQuery <- session.prepare(GetLastStremMessage.query)
       writeMessageQuery <- session.prepare(WriteMessage.query)
     } yield new MessageDb[F] {
@@ -117,6 +137,17 @@ object MessageDb {
           condition: Option[String],
       ): Stream[F, MessageDb.Read.Message] =
         getStreamMessagesQuery.stream(streamName ~ position ~ batchSize ~ condition, chunkSize)
+
+      override def getCategoryMessages(
+        category: String,
+        position: Option[Long],
+        batchSize: Option[Long],
+        correlation: Option[String],
+        consumerGroupMember: Option[Long],
+        consumerGroupSize: Option[Long],
+        condition: Option[String],
+      ): Stream[F, MessageDb.Read.Message] =
+        getCategoryMessageQuery.stream(category ~ position ~ batchSize ~ correlation ~ consumerGroupMember ~ consumerGroupSize ~ condition, chunkSize)
 
       override def getLastStreamMessage(
         streamName: String,
