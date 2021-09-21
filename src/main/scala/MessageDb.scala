@@ -48,18 +48,14 @@ trait MessageDb[F[_]] {
       expectedVersion: Option[Long],
   ): F[Long]
 
-  def writeMessage(
-      streamName: String,
-      message: MessageDb.Write.Message,
-      expectedVersion: Option[Long],
-  ): F[Long] =
+  def writeMessage(message: MessageDb.Write.Message): F[Long] =
     writeMessage(
       message.id,
-      streamName,
+      message.streamName,
       message.`type`,
       message.data,
       message.metadata,
-      expectedVersion,
+      message.expectedVersion,
     )
 
 }
@@ -69,9 +65,11 @@ object MessageDb {
   object Write {
     case class Message(
         id: String,
+        streamName: String,
         `type`: String,
         data: Json,
         metadata: Option[Json],
+        expectedVersion: Option[Long],
     )
   }
 

@@ -8,6 +8,8 @@ import java.util.UUID
 import io.circe._
 import io.circe.parser._
 import cats.syntax.all._
+import fs2.Stream
+import scala.concurrent.duration._
 
 //Assumes message-db is already running at localhost:5432, e.g. via `docker compose up -d`
 
@@ -93,6 +95,36 @@ class MessageDbTest extends CatsEffectSuite {
 
         assert(lm1.isDefined)
         assertMessage(e2, stream1, "Test2", 1L, j2, none, lm1.get)
+      }
+    }
+  }
+
+  /*
+  - create category stream that keeps running throughout test, appends msgs to list
+  - 
+  */
+
+  test("read stream unbounded") {
+    val category = newCategory
+    val id = newUuid
+    val stream = s"$category-$id"
+    val m0 = MessageDb.Write.Message(newUuid, stream, "test", toJson("""{"a":1}"""), none, none)
+    val m1 = MessageDb.Write.Message(newUuid, stream, "test", toJson("""{"a":2}"""), none, none)
+    val m2 = MessageDb.Write.Message(newUuid, stream, "test", toJson("""{"a":3}"""), none, none)
+    val m3 = MessageDb.Write.Message(newUuid, stream, "test", toJson("""{"a":4}"""), none, none)
+    messageDb.use { mdb => 
+      val input = Stream(m0, m1) ++ Stream.sleep_[IO](1.second) ++ Stream(m2, m3)
+      val writes = input.through(mdb.writeMessages)
+      val reads = mdb.getCategoryMessagesUnbounded(category, 0, 1L.some, none, none, none, none, 100.millis).evalTap(m => IO(println(m))).take(4)
+      for {
+        ms <- reads.concurrently(writes).compile.toList
+      } yield {
+        assertEquals(ms.size, 4)
+        // messages.zip(ms).foreach{case (expected, actual) => assertMessage(expected, actual)}
+        assertMessage(m0.id, m0.streamName, m0.`type`, 0, m0.data, m0.metadata, ms(0))
+        assertMessage(m1.id, m1.streamName, m1.`type`, 1, m1.data, m1.metadata, ms(1))
+        assertMessage(m2.id, m2.streamName, m2.`type`, 2, m2.data, m2.metadata, ms(2))
+        assertMessage(m3.id, m3.streamName, m3.`type`, 3, m3.data, m3.metadata, ms(3))
       }
     }
   }
