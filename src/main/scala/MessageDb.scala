@@ -1,5 +1,6 @@
 package messagedb
 
+import cats._
 import io.circe.{Json, Decoder, Error}
 import io.circe.parser.decode
 import java.time.LocalDateTime
@@ -61,6 +62,81 @@ trait MessageDb[F[_]] {
 }
 
 object MessageDb {
+
+  def mapK[F[_], G[_]](m: MessageDb[F])(f: F ~> G): MessageDb[G] = 
+    new MessageDb[G] {
+      override def getStreamMessages(
+          streamName: String,
+          position: Option[Long],
+          batchSize: Option[Long],
+          condition: Option[String],
+      ): Stream[G, MessageDb.Read.Message] = 
+        m.getStreamMessages(streamName, position, batchSize, condition).translate(f)
+
+      override def getCategoryMessages(
+        category: String,
+        position: Option[Long],
+        batchSize: Option[Long],
+        correlation: Option[String],
+        consumerGroupMember: Option[Long],
+        consumerGroupSize: Option[Long],
+        condition: Option[String],
+      ): Stream[G, MessageDb.Read.Message] = 
+        m.getCategoryMessages(category, position, batchSize, correlation, consumerGroupMember, consumerGroupSize, condition).translate(f)
+
+      override def getLastStreamMessage(
+        streamName: String,
+      ): G[Option[MessageDb.Read.Message]] = 
+        f(m.getLastStreamMessage(streamName))
+
+      override def writeMessage(
+          id: String,
+          streamName: String,
+          `type`: String,
+          data: Json,
+          metadata: Option[Json],
+          expectedVersion: Option[Long],
+      ): G[Long] = 
+        f(m.writeMessage(id, streamName, `type`, data, metadata, expectedVersion))
+    }
+
+  //TODO Sync?
+  def useEachTime[F[_]: cats.effect.Sync](r: Resource[F, MessageDb[F]]): MessageDb[F] = 
+    new MessageDb[F] {
+      override def getStreamMessages(
+          streamName: String,
+          position: Option[Long],
+          batchSize: Option[Long],
+          condition: Option[String],
+      ): Stream[F, MessageDb.Read.Message] = 
+        Stream.resource(r).flatMap(_.getStreamMessages(streamName, position, batchSize, condition))
+
+      override def getCategoryMessages(
+        category: String,
+        position: Option[Long],
+        batchSize: Option[Long],
+        correlation: Option[String],
+        consumerGroupMember: Option[Long],
+        consumerGroupSize: Option[Long],
+        condition: Option[String],
+      ): Stream[F, MessageDb.Read.Message] = 
+        Stream.resource(r).flatMap(_.getCategoryMessages(category, position, batchSize, correlation, consumerGroupMember, consumerGroupSize, condition))
+
+      override def getLastStreamMessage(
+        streamName: String,
+      ): F[Option[MessageDb.Read.Message]] = 
+        r.use(_.getLastStreamMessage(streamName))
+
+      override def writeMessage(
+          id: String,
+          streamName: String,
+          `type`: String,
+          data: Json,
+          metadata: Option[Json],
+          expectedVersion: Option[Long],
+      ): F[Long] = 
+        r.use(_.writeMessage(id, streamName, `type`, data, metadata, expectedVersion))
+    }
 
   object Write {
     case class Message(
