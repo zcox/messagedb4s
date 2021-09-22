@@ -123,6 +123,22 @@ case class MessageDbOps[F[_]: Temporal](messageDb: MessageDb[F]) {
       getCategoryMessagesUnbounded(category, p, batchSize, correlation, consumerGroupMember, consumerGroupSize, condition, tickInterval)
     )
 
+  def getCategoryMessagesUnbounded(
+    category: String,
+    subscriberId: String,
+    f: MessageDb.Read.Message => F[Unit],
+    batchSize: Option[Long],
+    correlation: Option[String],
+    consumerGroupMember: Option[Long],
+    consumerGroupSize: Option[Long],
+    condition: Option[String],
+    tickInterval: FiniteDuration,
+  ): Stream[F, Unit] = 
+    getCategoryMessagesUnbounded(category, subscriberId, batchSize, correlation, consumerGroupMember, consumerGroupSize, condition, tickInterval)
+      .evalTap(f)
+      .evalTap(writeGlobalPosition(subscriberId))
+      .void
+
   def writePosition(subscriberId: String, position: Long): F[Unit] = 
     messageDb.writeMessage(
       UUID.randomUUID().toString(),
