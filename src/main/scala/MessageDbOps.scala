@@ -23,9 +23,9 @@ object MessageDbOps {
     def gettingSamePosition: Boolean = 
       nextPositionToGet == lastPositionGot
     def sleepIfGettingSamePosition[F[_]: Temporal](d: FiniteDuration): Stream[F, Nothing] =
-      if (gettingSamePosition)
+      if (gettingSamePosition || lastPositionGot == Long.MinValue)
         Stream.sleep_(d)
-      else
+      else 
         Stream.empty
   }
 
@@ -65,10 +65,11 @@ case class MessageDbOps[F[_]: Temporal](messageDb: MessageDb[F]) {
       Stream.repeatEval(
         state.get.map(s => 
           s.sleepIfGettingSamePosition[F](tickInterval) ++
+          Stream.eval(state.update(_.copy(lastPositionGot = s.nextPositionToGet))).drain ++
           getMessages(s.nextPositionToGet)
         )
       ).flatten.evalTap(m => 
-        state.update(_.update(getPosition(m) + 1))
+        state.update(_.copy(nextPositionToGet = getPosition(m) + 1))
       )
     )
 
