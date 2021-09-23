@@ -3,7 +3,7 @@ package messagedb
 import cats.syntax.all._
 import cats.effect._
 import fs2.{Stream, Pipe}
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
 import io.circe._
 import io.circe.syntax._
 import io.circe.generic.semiauto._
@@ -127,17 +127,19 @@ case class MessageDbOps[F[_]: Temporal](messageDb: MessageDb[F]) {
     category: String,
     subscriberId: String,
     f: MessageDb.Read.Message => F[Unit],
-    batchSize: Option[Long],
-    correlation: Option[String],
-    consumerGroupMember: Option[Long],
-    consumerGroupSize: Option[Long],
-    condition: Option[String],
-    tickInterval: FiniteDuration,
+    batchSize: Option[Long] = 100L.some,
+    correlation: Option[String] = none,
+    consumerGroupMember: Option[Long] = none,
+    consumerGroupSize: Option[Long] = none,
+    condition: Option[String] = none,
+    tickInterval: FiniteDuration = 1.second,
   ): Stream[F, Unit] = 
     getCategoryMessagesUnbounded(category, subscriberId, batchSize, correlation, consumerGroupMember, consumerGroupSize, condition, tickInterval)
       .evalTap(f)
       .evalTap(writeGlobalPosition(subscriberId))
       .void
+
+  //TODO subscriber util that writes position every n messages
 
   def writePosition(subscriberId: String, position: Long): F[Unit] = 
     messageDb.writeMessage(
