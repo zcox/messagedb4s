@@ -1,7 +1,7 @@
 package messagedb
 
 import cats._
-import io.circe.{Json, Decoder, Error}
+import io.circe.{Json, Decoder, Error, ParsingFailure}
 import io.circe.parser.decode
 import java.time.LocalDateTime
 import fs2.Stream
@@ -10,6 +10,44 @@ import skunk.implicits._
 import skunk.codec.all._
 import skunk.circe.codec.all._
 import cats.effect.Resource
+
+/*
+
+Here is an example of the error from writeMessage when expectedVersion does not match:
+
+[ERROR] Exception in thread "main" skunk.exception.PostgresErrorException:
+[ERROR] 🔥
+[ERROR] 🔥  Postgres ERROR P0001 raised in exec_stmt_raise (pl_exec.c:3337)
+[ERROR] 🔥
+[ERROR] 🔥    Problem: Wrong expected version: 0 (Stream:
+[ERROR] 🔥             identity-2ee1df30-f3f6-4566-af9f-eb0828834fb8, Stream Version: -1).
+[ERROR] 🔥
+[ERROR] 🔥  The statement under consideration was defined
+[ERROR] 🔥    at /Users/zcox/code/zcox/messagedb4s/src/main/scala/MessageDb.scala:203
+[ERROR] 🔥
+[ERROR] 🔥    SELECT write_message($1, $2, $3, $4, $5, $6)
+[ERROR] 🔥
+[ERROR] 🔥  and the arguments were provided
+[ERROR] 🔥    at /Users/zcox/code/zcox/messagedb4s/src/main/scala/MessageDb.scala:247
+[ERROR] 🔥
+[ERROR] 🔥    $1 varchar    fc9b466d-998c-448f-8a17-3888aba5e573
+[ERROR] 🔥    $2 varchar    identity-2ee1df30-f3f6-4566-af9f-eb0828834fb8
+[ERROR] 🔥    $3 varchar    Registered
+[ERROR] 🔥    $4 jsonb      {"userId":"2ee1df30-f3f6-4566-af9f-eb0828834fb8","email":"user@site.com","passwordHash":"$2a$10$9CdhK9eSUwm6EHtV2kxwYu6mNEUziorQW7K1c/CTDqc9OPlYxDJ/u"}
+[ERROR] 🔥    $5 jsonb      {"userId":"ae485b99-b820-48d3-a8d5-9a1a606b6ed6","traceId":"2ee1df30-f3f6-4566-af9f-eb0828834fb8"}
+[ERROR] 🔥    $6 int8       0
+[ERROR] 🔥
+[ERROR] 🔥  If this is an error you wish to trap and handle in your application, you can do
+[ERROR] 🔥  so with a SqlState extractor. For example:
+[ERROR] 🔥
+[ERROR] 🔥    doSomething.recoverWith { case SqlState.RaiseException(ex) =>  ...}
+[ERROR] 🔥
+[ERROR]
+[ERROR] skunk.exception.PostgresErrorException: Wrong expected version: 0 (Stream: identity-2ee1df30-f3f6-4566-af9f-eb0828834fb8, Stream Version: -1).
+
+May want to consider translating that into something more explicit, that could be handled by clients.
+
+*/
 
 trait MessageDb[F[_]] {
 
