@@ -164,6 +164,10 @@ object MessageDb {
     ) {
       def decodeData[A: Decoder]: Either[Error, A] = 
         decode[A](data)
+      def decodeMetadata[A: Decoder]: Either[Error, A] = 
+        metadata
+          .toRight[Error](ParsingFailure("metadata field does not exist", new RuntimeException("metadata field does not exist")))
+          .flatMap(decode[A])
     }
 
     object Message {
