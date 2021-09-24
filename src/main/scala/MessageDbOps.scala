@@ -124,7 +124,7 @@ case class MessageDbOps[F[_]: Temporal](messageDb: MessageDb[F]) {
       getCategoryMessagesUnbounded(category, p, batchSize, correlation, consumerGroupMember, consumerGroupSize, condition, tickInterval)
     )
 
-  def getCategoryMessagesUnbounded(
+  def subscribe(
     category: String,
     subscriberId: String,
     f: MessageDb.Read.Message => F[Unit],
