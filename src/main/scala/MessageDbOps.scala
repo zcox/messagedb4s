@@ -158,29 +158,13 @@ case class MessageDbOps[F[_]: Temporal](messageDb: MessageDb[F]) {
   def writeGlobalPosition(subscriberId: String): MessageDb.Read.Message => F[Unit] =
     writePosition(subscriberId).compose(_.globalPosition + 1)
 
-  // def subscribeToCategoryMessagesUnbounded(
-  //   category: String,
-  //   subscriberId: String,
-  //   batchSize: Option[Long],
-  //   correlation: Option[String],
-  //   consumerGroupMember: Option[Long],
-  //   consumerGroupSize: Option[Long],
-  //   condition: Option[String],
-  //   tickInterval: FiniteDuration,
-  //   positionUpdateInterval: Long = 100L,
-  // ): Stream[F, MessageDb.Read.Message] = 
-  //   Stream.eval(loadPosition(subscriberId)).flatMap(start => 
-  //     Stream.eval(Ref.of[F, Long](0)).flatMap(count => 
-  //       getCategoryMessagesUnbounded(category, start, batchSize, correlation, consumerGroupMember, consumerGroupSize, condition, tickInterval)
-  //         .evalTap(m => 
-  //           count.update(_ + 1) *>
-  //           count.get.flatMap(c => 
-  //             if (c >= positionUpdateInterval)
-  //               count.set(0L) *> writePosition(subscriberId, m.globalPosition)
-  //           )
-  //         )
-  //     )
-  //   )
+  def getAllStreamMessages(
+    streamName: String,
+    position: Option[Long] = 0L.some,
+    batchSize: Option[Long] = Long.MaxValue.some,
+    condition: Option[String] = none,
+  ): Stream[F, MessageDb.Read.Message] = 
+    messageDb.getStreamMessages(streamName, position, batchSize, condition)
 
   val writeMessages: Pipe[F, MessageDb.Write.Message, Long] = 
     _.evalMap(messageDb.writeMessage)
