@@ -19,9 +19,15 @@ class MessageDbTest extends CatsEffectSuite {
     Session.single(
       host = "localhost",
       port = 5432,
-      user = "message_store",
+      user = "postgres",
       database = "message_store",
-      password = Some("message_store")
+      password = Some("postgres"),
+      parameters = Map(
+        //messagedb's tables etc are in the message_store schema, not public schema
+        "search_path" -> "message_store", 
+        //http://docs.eventide-project.org/user-guide/message-db/server-functions.html#filtering-messages-with-a-sql-condition
+        "message_store.sql_condition" -> "on"
+      ) ++ Session.DefaultConnectionParameters,
     )
 
   val messageDb: Resource[IO, MessageDb[IO]] =
@@ -76,6 +82,7 @@ class MessageDbTest extends CatsEffectSuite {
         ms1 <- mdb.getStreamMessages(stream1, None, None, None).compile.toList
         c1 <- mdb.getCategoryMessages(category, None, None, None, None, None, None).compile.toList
         lm1 <- mdb.getLastStreamMessage(stream1)
+        m2 <- mdb.getStreamMessages(stream1, None, None, "(data->>'b')::int = 2".some).compile.last
       } yield {
         assert(ms0.isEmpty)
         assert(c0.isEmpty)
@@ -95,6 +102,8 @@ class MessageDbTest extends CatsEffectSuite {
 
         assert(lm1.isDefined)
         assertMessage(e2, stream1, "Test2", 1L, j2, none, lm1.get)
+
+        assertMessage(e1, stream1, "Test1", 0L, j1, none, m2.get)
       }
     }
   }
