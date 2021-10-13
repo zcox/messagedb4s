@@ -82,7 +82,7 @@ class MessageDbTest extends CatsEffectSuite {
         ms1 <- mdb.getStreamMessages(stream1, None, None, None).compile.toList
         c1 <- mdb.getCategoryMessages(category, None, None, None, None, None, None).compile.toList
         lm1 <- mdb.getLastStreamMessage(stream1)
-        m2 <- mdb.getStreamMessages(stream1, None, None, "(data->>'b')::int = 2".some).compile.last
+        ms2 <- mdb.getStreamMessages(stream1, None, None, "(data->>'b')::int = 2".some).compile.toList
       } yield {
         assert(ms0.isEmpty)
         assert(c0.isEmpty)
@@ -103,15 +103,11 @@ class MessageDbTest extends CatsEffectSuite {
         assert(lm1.isDefined)
         assertMessage(e2, stream1, "Test2", 1L, j2, none, lm1.get)
 
-        assertMessage(e1, stream1, "Test1", 0L, j1, none, m2.get)
+        assertEquals(ms2.size, 1)
+        assertMessage(e1, stream1, "Test1", 0L, j1, none, ms2(0))
       }
     }
   }
-
-  /*
-  - create category stream that keeps running throughout test, appends msgs to list
-  - 
-  */
 
   test("read stream unbounded") {
     val category = newCategory
@@ -124,12 +120,11 @@ class MessageDbTest extends CatsEffectSuite {
     messageDb.use { mdb => 
       val input = Stream(m0, m1) ++ Stream.sleep_[IO](1.second) ++ Stream(m2, m3)
       val writes = input.through(mdb.writeMessages)
-      val reads = mdb.getCategoryMessagesUnbounded(category, 0, 1L.some, none, none, none, none, 100.millis).evalTap(m => IO(println(m))).take(4)
+      val reads = mdb.getCategoryMessagesUnbounded(category, 0, 1L.some, none, none, none, none, 100.millis)/*.evalTap(m => IO(println(m)))*/.take(4)
       for {
         ms <- reads.concurrently(writes).compile.toList
       } yield {
         assertEquals(ms.size, 4)
-        // messages.zip(ms).foreach{case (expected, actual) => assertMessage(expected, actual)}
         assertMessage(m0.id, m0.streamName, m0.`type`, 0, m0.data, m0.metadata, ms(0))
         assertMessage(m1.id, m1.streamName, m1.`type`, 1, m1.data, m1.metadata, ms(1))
         assertMessage(m2.id, m2.streamName, m2.`type`, 2, m2.data, m2.metadata, ms(2))
