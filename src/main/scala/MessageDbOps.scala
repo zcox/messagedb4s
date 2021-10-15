@@ -161,10 +161,38 @@ case class MessageDbOps[F[_]: Temporal](messageDb: MessageDb[F]) {
   def getAllStreamMessages(
     streamName: String,
     position: Option[Long] = 0L.some,
-    batchSize: Option[Long] = Long.MaxValue.some,
+    batchSize: Option[Long] = -1L.some,
     condition: Option[String] = none,
   ): Stream[F, MessageDb.Read.Message] = 
     messageDb.getStreamMessages(streamName, position, batchSize, condition)
+
+  def getFirstStreamMessage(
+    streamName: String,
+    position: Option[Long] = 0L.some,
+    condition: Option[String] = none,
+  ): F[Option[MessageDb.Read.Message]] = 
+    getAllStreamMessages(
+      streamName = streamName,
+      position = position,
+      batchSize = 1L.some,
+      condition = condition,
+    ).compile.last
+
+  def isStreamEmpty(streamName: String): F[Boolean] = 
+    getFirstStreamMessage(streamName).map(_.isDefined)
+
+  def writeMessage_(
+      id: String,
+      streamName: String,
+      `type`: String,
+      data: Json,
+      metadata: Option[Json],
+      expectedVersion: Option[Long],
+  ): F[Unit] = 
+    messageDb.writeMessage_(id, streamName, `type`, data, metadata, expectedVersion).void
+
+  def writeMessage_(message: MessageDb.Write.Message): F[Unit] =
+    messageDb.writeMessage_(message).void
 
   val writeMessages: Pipe[F, MessageDb.Write.Message, Long] = 
     _.evalMap(messageDb.writeMessage)
