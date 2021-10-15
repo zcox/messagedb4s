@@ -179,7 +179,7 @@ case class MessageDbOps[F[_]: Temporal](messageDb: MessageDb[F]) {
     ).compile.last
 
   def isStreamEmpty(streamName: String): F[Boolean] = 
-    getFirstStreamMessage(streamName).map(_.isDefined)
+    getFirstStreamMessage(streamName).map(_.isEmpty)
 
   def writeMessage_(
       id: String,
@@ -189,10 +189,10 @@ case class MessageDbOps[F[_]: Temporal](messageDb: MessageDb[F]) {
       metadata: Option[Json],
       expectedVersion: Option[Long],
   ): F[Unit] = 
-    messageDb.writeMessage_(id, streamName, `type`, data, metadata, expectedVersion).void
+    messageDb.writeMessage(id, streamName, `type`, data, metadata, expectedVersion).void
 
   def writeMessage_(message: MessageDb.Write.Message): F[Unit] =
-    messageDb.writeMessage_(message).void
+    messageDb.writeMessage(message).void
 
   val writeMessages: Pipe[F, MessageDb.Write.Message, Long] = 
     _.evalMap(messageDb.writeMessage)
