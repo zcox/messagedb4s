@@ -257,9 +257,9 @@ object MessageDb {
   }
 
   object WriteMessage {
-    type Arguments = String ~ String ~ String ~ Json ~ Option[Json] ~ Option[Long]
+    type Arguments = UUID ~ String ~ String ~ Json ~ Option[Json] ~ Option[Long]
     val query: Query[Arguments, Long] =
-      sql"SELECT write_message($varchar, $varchar, $varchar, $jsonb, ${jsonb.opt}, ${int8.opt})"
+      sql"SELECT write_message($uuid::varchar, $varchar, $varchar, $jsonb, ${jsonb.opt}, ${int8.opt})"
         .query(int8)
   }
 
@@ -303,7 +303,7 @@ object MessageDb {
           metadata: Option[Json],
           expectedVersion: Option[Long],
       ): F[Long] =
-        writeMessageQuery.unique(id.toString ~ streamName ~ `type` ~ data ~ metadata ~ expectedVersion)
+        writeMessageQuery.unique(id ~ streamName ~ `type` ~ data ~ metadata ~ expectedVersion)
     }
 
 }
