@@ -1,8 +1,7 @@
 package messagedb
 
 import cats._
-import io.circe.{Json, Decoder, Error, ParsingFailure}
-import io.circe.parser.decode
+import io.circe.{Json, Decoder, DecodingFailure}
 import java.util.UUID
 import java.time.LocalDateTime
 import fs2.Stream
@@ -199,14 +198,6 @@ object MessageDb {
     messages table enforces:
     - id is uuid
     - data & metadata are jsonb
-
-    Write.Message changes:
-    - id: UUID
-
-    Read.Message changes:
-    - id: UUID
-    - data: Json
-    - metadata: Option[Json]
     */
 
     // https://github.com/message-db/message-db/blob/master/database/types/message.sql
@@ -216,21 +207,20 @@ object MessageDb {
         `type`: String,
         position: Long,
         globalPosition: Long,
-        //the message type declares data and metadata as varchar, so we have to use String here
-        data: String,
-        metadata: Option[String],
+        data: Json,
+        metadata: Option[Json],
         time: LocalDateTime,
     ) {
-      def decodeData[A: Decoder]: Either[Error, A] = 
-        decode[A](data)
-      def decodeMetadata[A: Decoder]: Either[Error, A] = 
+      def decodeData[A: Decoder]: Decoder.Result[A] = 
+        Decoder[A].decodeJson(data)
+      def decodeMetadata[A: Decoder]: Decoder.Result[A] = 
         metadata
-          .toRight[Error](ParsingFailure("metadata field does not exist", new RuntimeException("metadata field does not exist")))
-          .flatMap(decode[A])
+          .toRight[DecodingFailure](DecodingFailure("metadata field does not exist", List.empty))
+          .flatMap(Decoder[A].decodeJson(_))
     }
 
     object Message {
-      val codec = uuid ~ varchar ~ varchar ~ int8 ~ int8 ~ varchar ~ varchar.opt ~ timestamp
+      val codec = uuid ~ varchar ~ varchar ~ int8 ~ int8 ~ jsonb ~ jsonb.opt ~ timestamp
       val decoder = codec.gmap[Message]
     }
   }
@@ -238,21 +228,21 @@ object MessageDb {
   object GetStreamMessages {
     type Arguments = String ~ Option[Long] ~ Option[Long] ~ Option[String]
     val query: Query[Arguments, Read.Message] =
-      sql"SELECT uuid(id), stream_name, type, position, global_position, data, metadata, time FROM get_stream_messages($varchar, ${int8.opt}, ${int8.opt}, ${varchar.opt})"
+      sql"SELECT uuid(id), stream_name, type, position, global_position, jsonb(data), jsonb(metadata), time FROM get_stream_messages($varchar, ${int8.opt}, ${int8.opt}, ${varchar.opt})"
         .query(Read.Message.decoder)
   }
 
   object GetCategoryMessages {
     type Arguments = String ~ Option[Long] ~ Option[Long] ~ Option[String] ~ Option[Long] ~ Option[Long] ~ Option[String]
     val query: Query[Arguments, Read.Message] =
-      sql"SELECT uuid(id), stream_name, type, position, global_position, data, metadata, time FROM get_category_messages($varchar, ${int8.opt}, ${int8.opt}, ${varchar.opt}, ${int8.opt}, ${int8.opt}, ${varchar.opt})"
+      sql"SELECT uuid(id), stream_name, type, position, global_position, jsonb(data), jsonb(metadata), time FROM get_category_messages($varchar, ${int8.opt}, ${int8.opt}, ${varchar.opt}, ${int8.opt}, ${int8.opt}, ${varchar.opt})"
         .query(Read.Message.decoder)
   }
 
   object GetLastStremMessage {
     type Arguments = String
     val query: Query[Arguments, Read.Message] = 
-      sql"SELECT uuid(id), stream_name, type, position, global_position, data, metadata, time FROM get_last_stream_message($varchar)"
+      sql"SELECT uuid(id), stream_name, type, position, global_position, jsonb(data), jsonb(metadata), time FROM get_last_stream_message($varchar)"
         .query(Read.Message.decoder)
   }
 

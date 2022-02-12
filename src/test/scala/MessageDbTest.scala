@@ -57,8 +57,8 @@ class MessageDbTest extends CatsEffectSuite {
     assertEquals(position, m.position)
     //globalPosition is affected by other messages in DB
     // assertEquals(globalPosition, m.globalPosition)
-    assertEquals(data, toJson(m.data))
-    assertEquals(metadata, m.metadata.map(toJson))
+    assertEquals(data, m.data)
+    assertEquals(metadata, m.metadata)
     //TODO time?
   }
 
