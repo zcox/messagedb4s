@@ -3,6 +3,7 @@ package messagedb
 import cats._
 import io.circe.{Json, Decoder, Error, ParsingFailure}
 import io.circe.parser.decode
+import java.util.UUID
 import java.time.LocalDateTime
 import fs2.Stream
 import skunk._
@@ -79,7 +80,7 @@ trait MessageDb[F[_]] {
   // https://github.com/message-db/message-db/blob/master/database/functions/write-message.sql
   // http://docs.eventide-project.org/user-guide/message-db/server-functions.html#write-a-message
   def writeMessage(
-      id: String,
+      id: UUID,
       streamName: String,
       `type`: String,
       data: Json,
@@ -128,7 +129,7 @@ object MessageDb {
         f(m.getLastStreamMessage(streamName))
 
       override def writeMessage(
-          id: String,
+          id: UUID,
           streamName: String,
           `type`: String,
           data: Json,
@@ -166,7 +167,7 @@ object MessageDb {
         r.use(_.getLastStreamMessage(streamName))
 
       override def writeMessage(
-          id: String,
+          id: UUID,
           streamName: String,
           `type`: String,
           data: Json,
@@ -178,7 +179,7 @@ object MessageDb {
 
   object Write {
     case class Message(
-        id: String,
+        id: UUID,
         streamName: String,
         `type`: String,
         data: Json,
@@ -188,9 +189,29 @@ object MessageDb {
   }
 
   object Read {
+
+    /*
+    write_message enforces:
+    - id is uuid
+    - data is not null? need to verify
+    - data & metadata are jsonb
+
+    messages table enforces:
+    - id is uuid
+    - data & metadata are jsonb
+
+    Write.Message changes:
+    - id: UUID
+
+    Read.Message changes:
+    - id: UUID
+    - data: Json
+    - metadata: Option[Json]
+    */
+
     // https://github.com/message-db/message-db/blob/master/database/types/message.sql
     case class Message(
-        id: String,
+        id: UUID,
         streamName: String,
         `type`: String,
         position: Long,
@@ -209,7 +230,7 @@ object MessageDb {
     }
 
     object Message {
-      val codec = varchar ~ varchar ~ varchar ~ int8 ~ int8 ~ varchar ~ varchar.opt ~ timestamp
+      val codec = uuid ~ varchar ~ varchar ~ int8 ~ int8 ~ varchar ~ varchar.opt ~ timestamp
       val decoder = codec.gmap[Message]
     }
   }
@@ -217,21 +238,21 @@ object MessageDb {
   object GetStreamMessages {
     type Arguments = String ~ Option[Long] ~ Option[Long] ~ Option[String]
     val query: Query[Arguments, Read.Message] =
-      sql"SELECT id, stream_name, type, position, global_position, data, metadata, time FROM get_stream_messages($varchar, ${int8.opt}, ${int8.opt}, ${varchar.opt})"
+      sql"SELECT uuid(id), stream_name, type, position, global_position, data, metadata, time FROM get_stream_messages($varchar, ${int8.opt}, ${int8.opt}, ${varchar.opt})"
         .query(Read.Message.decoder)
   }
 
   object GetCategoryMessages {
     type Arguments = String ~ Option[Long] ~ Option[Long] ~ Option[String] ~ Option[Long] ~ Option[Long] ~ Option[String]
     val query: Query[Arguments, Read.Message] =
-      sql"SELECT id, stream_name, type, position, global_position, data, metadata, time FROM get_category_messages($varchar, ${int8.opt}, ${int8.opt}, ${varchar.opt}, ${int8.opt}, ${int8.opt}, ${varchar.opt})"
+      sql"SELECT uuid(id), stream_name, type, position, global_position, data, metadata, time FROM get_category_messages($varchar, ${int8.opt}, ${int8.opt}, ${varchar.opt}, ${int8.opt}, ${int8.opt}, ${varchar.opt})"
         .query(Read.Message.decoder)
   }
 
   object GetLastStremMessage {
     type Arguments = String
     val query: Query[Arguments, Read.Message] = 
-      sql"SELECT id, stream_name, type, position, global_position, data, metadata, time FROM get_last_stream_message($varchar)"
+      sql"SELECT uuid(id), stream_name, type, position, global_position, data, metadata, time FROM get_last_stream_message($varchar)"
         .query(Read.Message.decoder)
   }
 
@@ -275,14 +296,14 @@ object MessageDb {
         getLastStreamMessageQuery.option(streamName)
 
       override def writeMessage(
-          id: String,
+          id: UUID,
           streamName: String,
           `type`: String,
           data: Json,
           metadata: Option[Json],
           expectedVersion: Option[Long],
       ): F[Long] =
-        writeMessageQuery.unique(id ~ streamName ~ `type` ~ data ~ metadata ~ expectedVersion)
+        writeMessageQuery.unique(id.toString ~ streamName ~ `type` ~ data ~ metadata ~ expectedVersion)
     }
 
 }

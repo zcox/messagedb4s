@@ -33,8 +33,8 @@ class MessageDbTest extends CatsEffectSuite {
   val messageDb: Resource[IO, MessageDb[IO]] =
     session.flatMap(MessageDb.fromSession(_))
 
-  def newUuid: String =
-    UUID.randomUUID.toString
+  def newUuid: UUID =
+    UUID.randomUUID()
 
   def newCategory: String = 
     "test" + System.currentTimeMillis.toString
@@ -43,7 +43,7 @@ class MessageDbTest extends CatsEffectSuite {
     parse(s).getOrElse(throw new NullPointerException())
 
   def assertMessage(
-      id: String,
+      id: UUID,
       streamName: String,
       `type`: String,
       position: Long,

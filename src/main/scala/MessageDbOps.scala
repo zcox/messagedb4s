@@ -144,7 +144,7 @@ case class MessageDbOps[F[_]: Temporal](messageDb: MessageDb[F]) {
 
   def writePosition(subscriberId: String, position: Long): F[Unit] = 
     messageDb.writeMessage(
-      UUID.randomUUID().toString(),
+      UUID.randomUUID(),
       SubscriberState.streamName(subscriberId),
       SubscriberState.MessageType,
       SubscriberState(position).asJson,
@@ -182,7 +182,7 @@ case class MessageDbOps[F[_]: Temporal](messageDb: MessageDb[F]) {
     getFirstStreamMessage(streamName).map(_.isEmpty)
 
   def writeMessage_(
-      id: String,
+      id: UUID,
       streamName: String,
       `type`: String,
       data: Json,
