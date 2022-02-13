@@ -107,7 +107,7 @@ case class MessageDbOps[F[_]: Temporal](messageDb: MessageDb[F]) {
   def loadPosition(subscriberId: String): F[Long] = 
     for {
       o <- messageDb.getLastStreamMessage(SubscriberState.streamName(subscriberId))
-      s <- o.fold(SubscriberState.Default.pure[F])(_.decodeData[SubscriberState].liftTo[F])
+      s <- o.fold(SubscriberState.Default.pure[F])(_.dataAs[SubscriberState].liftTo[F])
     } yield s.position
 
   def getCategoryMessagesUnbounded(

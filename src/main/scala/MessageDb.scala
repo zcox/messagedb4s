@@ -1,9 +1,8 @@
 package messagedb
 
 import cats._
-import io.circe.{Json, Decoder, DecodingFailure}
+import io.circe.Json
 import java.util.UUID
-import java.time.LocalDateTime
 import fs2.Stream
 import skunk._
 import skunk.implicits._
@@ -189,35 +188,8 @@ object MessageDb {
 
   object Read {
 
-    /*
-    write_message enforces:
-    - id is uuid
-    - data is not null? need to verify
-    - data & metadata are jsonb
-
-    messages table enforces:
-    - id is uuid
-    - data & metadata are jsonb
-    */
-
     // https://github.com/message-db/message-db/blob/master/database/types/message.sql
-    case class Message(
-        id: UUID,
-        streamName: String,
-        `type`: String,
-        position: Long,
-        globalPosition: Long,
-        data: Json,
-        metadata: Option[Json],
-        time: LocalDateTime,
-    ) {
-      def decodeData[A: Decoder]: Decoder.Result[A] = 
-        Decoder[A].decodeJson(data)
-      def decodeMetadata[A: Decoder]: Decoder.Result[A] = 
-        metadata
-          .toRight[DecodingFailure](DecodingFailure("metadata field does not exist", List.empty))
-          .flatMap(Decoder[A].decodeJson(_))
-    }
+    type Message = JsonMessage2
 
     object Message {
       val codec = uuid ~ varchar ~ varchar ~ int8 ~ int8 ~ jsonb ~ jsonb.opt ~ timestamp
