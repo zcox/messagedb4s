@@ -1,4 +1,4 @@
-package messagedb
+package messagedb.read
 
 import java.util.UUID
 import java.time.LocalDateTime

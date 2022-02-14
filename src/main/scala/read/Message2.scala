@@ -1,4 +1,4 @@
-package messagedb
+package messagedb.read
 
 //TODO RichMessage2?
 

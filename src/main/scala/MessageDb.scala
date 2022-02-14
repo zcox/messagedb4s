@@ -176,20 +176,25 @@ object MessageDb {
     }
 
   object Write {
-    case class Message(
+    type Message = write.JsonMessage2
+
+    object Message {
+      def apply(
         id: UUID,
         streamName: String,
         `type`: String,
         data: Json,
         metadata: Option[Json],
         expectedVersion: Option[Long],
-    )
+      ): Message = 
+        write.Message(id, streamName, `type`, data, metadata, expectedVersion)
+    }
   }
 
   object Read {
 
     // https://github.com/message-db/message-db/blob/master/database/types/message.sql
-    type Message = JsonMessage2
+    type Message = read.JsonMessage2
 
     object Message {
       val codec = uuid ~ varchar ~ varchar ~ int8 ~ int8 ~ jsonb ~ jsonb.opt ~ timestamp
