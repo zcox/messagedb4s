@@ -1,6 +1,5 @@
 package messagedb
 
-import cats.effect.Temporal
 import cats._
 import cats.syntax.all._
 import io.circe._
@@ -34,6 +33,4 @@ package object write {
       m.copy(metadata = m.metadata.getOrElse(default))
   }
 
-  implicit def messageDbOps[F[_]: Temporal](messageDb: MessageDb[F]): MessageDbOps[F] = 
-    MessageDbOps[F](messageDb)
 }
