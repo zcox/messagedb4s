@@ -9,6 +9,7 @@ import skunk.implicits._
 import skunk.codec.all._
 import skunk.circe.codec.all._
 import cats.effect.Resource
+import cats.effect.kernel.MonadCancelThrow
 
 /*
 
@@ -271,6 +272,57 @@ object MessageDb {
           expectedVersion: Option[Long],
       ): F[Long] =
         writeMessageQuery.unique(id ~ streamName ~ `type` ~ data ~ metadata ~ expectedVersion)
+    }
+
+  def fromPool1[F[_]](pool: Resource[F, Session[F]], chunkSize: Int = 32): Resource[F, MessageDb[F]] =
+    pool.flatMap(s => fromSession[F](s, chunkSize))
+
+  def fromPool2[F[_]: MonadCancelThrow](pool: Resource[F, Session[F]], chunkSize: Int = 32): MessageDb[F] =
+    new MessageDb[F] {
+
+      private def prepareResource[A, B](query: Query[A, B]): Resource[F, PreparedQuery[F, A, B]] =
+        pool.flatMap(_.prepare(query))
+
+      private def prepareStream[A, B](query: Query[A, B]): Stream[F, PreparedQuery[F, A, B]] =
+        Stream.resource(prepareResource(query))
+
+      override def getStreamMessages(
+          streamName: String,
+          position: Option[Long],
+          batchSize: Option[Long],
+          condition: Option[String],
+      ): Stream[F, MessageDb.Read.Message] =
+          prepareStream(GetStreamMessages.query)
+            .flatMap(_.stream(streamName ~ position ~ batchSize ~ condition, chunkSize))
+
+      override def getCategoryMessages(
+        category: String,
+        position: Option[Long],
+        batchSize: Option[Long],
+        correlation: Option[String],
+        consumerGroupMember: Option[Long],
+        consumerGroupSize: Option[Long],
+        condition: Option[String],
+      ): Stream[F, MessageDb.Read.Message] =
+        prepareStream(GetCategoryMessages.query)
+          .flatMap(_.stream(category ~ position ~ batchSize ~ correlation ~ consumerGroupMember ~ consumerGroupSize ~ condition, chunkSize))
+
+      override def getLastStreamMessage(
+        streamName: String,
+      ): F[Option[MessageDb.Read.Message]] = 
+        prepareResource(GetLastStremMessage.query)
+          .use(_.option(streamName))
+
+      override def writeMessage(
+          id: UUID,
+          streamName: String,
+          `type`: String,
+          data: Json,
+          metadata: Option[Json],
+          expectedVersion: Option[Long],
+      ): F[Long] =
+        prepareResource(WriteMessage.query)
+          .use(_.unique(id ~ streamName ~ `type` ~ data ~ metadata ~ expectedVersion))
     }
 
 }

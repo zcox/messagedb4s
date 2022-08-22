@@ -15,13 +15,14 @@ import scala.concurrent.duration._
 
 class MessageDbTest extends CatsEffectSuite {
 
-  val session: Resource[IO, Session[IO]] =
-    Session.single(
+  val sessionPoolFactory: Resource[IO, Resource[IO, Session[IO]]] =
+    Session.pooled(
       host = "localhost",
       port = 5432,
       user = "postgres",
       database = "message_store",
       password = Some("postgres"),
+      max = 10,
       parameters = Map(
         //messagedb's tables etc are in the message_store schema, not public schema
         "search_path" -> "message_store", 
@@ -30,8 +31,8 @@ class MessageDbTest extends CatsEffectSuite {
       ) ++ Session.DefaultConnectionParameters,
     )
 
-  val messageDb: Resource[IO, MessageDb[IO]] =
-    session.flatMap(MessageDb.fromSession(_))
+  val messageDbFactory: Resource[IO, MessageDb[IO]] =
+    sessionPoolFactory.flatMap(MessageDb.fromPool1[IO](_))
 
   def newUuid: UUID =
     UUID.randomUUID()
@@ -72,7 +73,7 @@ class MessageDbTest extends CatsEffectSuite {
     val j1 = toJson("""{"a":1,"b":2}""")
     val e2 = newUuid
     val j2 = toJson("""{"c":3,"d":4}""")
-    messageDb.use { mdb =>
+    messageDbFactory.use { mdb =>
       for {
         ms0 <- mdb.getStreamMessages(stream0, None, None, None).compile.toList
         c0 <- mdb.getCategoryMessages(category, None, None, None, None, None, None).compile.toList
@@ -117,7 +118,7 @@ class MessageDbTest extends CatsEffectSuite {
     val m1 = MessageDb.Write.Message(newUuid, stream, "test", toJson("""{"a":2}"""), none, none)
     val m2 = MessageDb.Write.Message(newUuid, stream, "test", toJson("""{"a":3}"""), none, none)
     val m3 = MessageDb.Write.Message(newUuid, stream, "test", toJson("""{"a":4}"""), none, none)
-    messageDb.use { mdb => 
+    messageDbFactory.use { mdb => 
       val input = Stream(m0, m1) ++ Stream.sleep_[IO](1.second) ++ Stream(m2, m3)
       val writes = input.through(mdb.writeMessages)
       val reads = mdb.getCategoryMessagesUnbounded(category, 0, 1L.some, none, none, none, none, 100.millis)/*.evalTap(m => IO(println(m)))*/.take(4)
