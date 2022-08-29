@@ -3,7 +3,7 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 scalaVersion := "2.13.8"
 
 lazy val V = new {
-  val skunk = "0.2.3"
+  val skunk = "0.3.1"
   val circe = "0.14.1"
   val munit = "0.7.29"
   val munitCatsEffect3 = "1.0.7"
