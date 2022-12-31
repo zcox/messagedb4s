@@ -16,6 +16,9 @@ messages table enforces:
 - data & metadata are jsonb (but can be null?)
 */
 
+//TODO consider a new StreamName type, since reading messages enforces it
+//seems to only check that it contains a `-` char
+
 case class Message[A, B](
   id: UUID,
   streamName: String,
